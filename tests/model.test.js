@@ -59,3 +59,7 @@ test('import rejects unknown status strings and mismatched exercise identifiers'
   s.sessions={};s.exercises.smith.id='not-smith';
   assert.equal(model.restoreState(JSON.stringify(s)),null);
 });
+test('import requires display labels to be strings',()=>{
+  const s=model.initialState();s.plans.A.name={bad:true};
+  assert.equal(model.restoreState(JSON.stringify(s)),null);
+});

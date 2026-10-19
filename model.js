@@ -39,7 +39,7 @@ export function restoreState(raw){
     const s=JSON.parse(raw);
     if(s?.version!==1||!s.exercises||!s.sessions||Array.isArray(s.sessions)||!['A','B'].includes(s.selectedPlan))return null;
     for(const p of ['A','B']){
-      if(!Array.isArray(s.plans?.[p]?.items))return null;
+      if(!Array.isArray(s.plans?.[p]?.items)||typeof s.plans[p].name!=='string'||typeof s.plans[p].focus!=='string')return null;
       for(const item of s.plans[p].items){
         if(!s.exercises[item.exerciseId]||typeof item.sets!=='string'||typeof item.reps!=='string')return null;
       }
