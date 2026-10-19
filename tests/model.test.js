@@ -63,3 +63,58 @@ test('import requires display labels to be strings',()=>{
   const s=model.initialState();s.plans.A.name={bad:true};
   assert.equal(model.restoreState(JSON.stringify(s)),null);
 });
+
+test('weights accept decimal commas and zero and remain separate for each date and plan',()=>{
+  const s=model.initialState();
+  model.setWeight(s,'2026-10-19','A','chest','12,5');
+  model.setWeight(s,'2026-10-19','B','chest','0');
+  assert.equal(model.getWeight(s,'2026-10-19','A','chest'),12.5);
+  assert.equal(model.getWeight(s,'2026-10-19','B','chest'),0);
+  assert.equal(model.getWeight(s,'2026-10-20','A','chest'),'');
+  assert.throws(()=>model.setWeight(s,'2026-10-19','A','chest','-5'));
+  assert.throws(()=>model.setWeight(s,'2026-10-19','A','chest','NaN'));
+  model.setWeight(s,'2026-10-19','A','chest','');
+  assert.equal(model.getWeight(s,'2026-10-19','A','chest'),'');
+});
+test('completed workouts retain exercise snapshots, weights and individual statuses',()=>{
+  const s=model.initialState();
+  model.setWeight(s,'2026-10-19','A','smith','30');
+  model.setStatus(s,'2026-10-19','A','smith','done');
+  model.setStatus(s,'2026-10-19','A','curl','skipped');
+  const record=model.completeWorkout(s,'2026-10-19','A');
+  assert.equal(record.items.length,6);assert.equal(record.items[0].weight,30);
+  assert.equal(record.items[0].status,'done');assert.equal(record.items[2].status,'skipped');
+  assert.equal(record.items[1].status,'pending');
+  model.saveExercise(s,{id:'smith',name:'Новое название',body:['Ноги'],description:'Новое описание',cover:'',sets:'5',reps:'5'},'A');
+  assert.equal(record.items[0].name,'Приседания в Смите');
+  assert.equal(record.items[0].sets,'3');
+  assert.equal(model.restoreState(JSON.stringify(s)).history['2026-10-19:A'].items[0].weight,30);
+});
+test('calendar holds both workouts on one day; duplicate completion updates one record',()=>{
+  const s=model.initialState();
+  model.completeWorkout(s,'2026-10-19','A'); model.completeWorkout(s,'2026-10-19','B');
+  model.completeWorkout(s,'2026-10-19','A');
+  assert.equal(Object.keys(s.history).length,2);
+  assert.equal(s.history['2026-10-19:B'].items[3].sets,'3');
+  model.removeCompletion(s,'2026-10-19','A');
+  assert.ok(s.history['2026-10-19:B']);assert.equal(s.history['2026-10-19:A'],undefined);
+});
+test('result edits after completion update calendar without changing historical program metadata',()=>{
+  const s=model.initialState();model.completeWorkout(s,'2026-10-19','A');
+  s.exercises.smith.name='Изменено';
+  model.setWeight(s,'2026-10-19','A','smith','32,5');
+  model.setStatus(s,'2026-10-19','A','smith','done');
+  const item=s.history['2026-10-19:A'].items[0];
+  assert.equal(item.weight,32.5);assert.equal(item.status,'done');
+  assert.equal(item.name,'Приседания в Смите');
+});
+test('previous version data migrates without losing marks and rejects malformed history or weights',()=>{
+  const old=model.initialState();delete old.history;delete old.weights;
+  model.setStatus(old,'2026-10-19','A','smith','done');
+  const s=model.restoreState(JSON.stringify(old));
+  assert.deepEqual(s.history,{});assert.deepEqual(s.weights,{});
+  assert.equal(model.getStatus(s,'2026-10-19','A','smith'),'done');
+  s.weights={'2026-10-19:A':{smith:-2}};assert.equal(model.restoreState(JSON.stringify(s)),null);
+  s.weights={};s.history={'2026-10-19:A':{items:'bad'}};
+  assert.equal(model.restoreState(JSON.stringify(s)),null);
+});

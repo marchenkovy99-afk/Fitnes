@@ -1,6 +1,7 @@
-import {initialState,STORAGE_KEY,restoreState,persist,localDate,getStatus,setStatus,saveExercise,validCover} from './model.js';
+import {initialState,STORAGE_KEY,restoreState,persist,localDate,getStatus,setStatus,getWeight,setWeight,completeWorkout,removeCompletion,saveExercise,validCover} from './model.js';
+import {calendarView,historyView} from './calendar.js';
 
-const paths={plus:'M12 5v14M5 12h14',check:'m5 12 4 4L19 6',x:'m6 6 12 12M18 6 6 18',back:'m15 18-6-6 6-6',chevron:'m9 6 6 6-6 6',edit:'m16 3 5 5M4 20l4-1L21 6l-4-4L4 15v5Z',image:'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01',link:'m10 13 4-4M8 15l-2 2a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m4 0 2-2a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0',dumbbell:'M7 12h10M5 7v10M19 7v10M2 9v6M22 9v6',library:'M4 5h7l2 3h7v13H4zM4 5V2h5',clock:'M12 8v4l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',download:'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',reset:'M3 10a9 9 0 1 1 1 8M3 4v6h6'};
+const paths={calendar:'M3 5h18v16H3zM7 3v4M17 3v4M3 10h18M7 14h2M15 14h2M7 18h2',plus:'M12 5v14M5 12h14',check:'m5 12 4 4L19 6',x:'m6 6 12 12M18 6 6 18',back:'m15 18-6-6 6-6',chevron:'m9 6 6 6-6 6',edit:'m16 3 5 5M4 20l4-1L21 6l-4-4L4 15v5Z',image:'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01',link:'m10 13 4-4M8 15l-2 2a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m4 0 2-2a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0',dumbbell:'M7 12h10M5 7v10M19 7v10M2 9v6M22 9v6',library:'M4 5h7l2 3h7v13H4zM4 5V2h5',clock:'M12 8v4l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',download:'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',reset:'M3 10a9 9 0 1 1 1 8M3 4v6h6'};
 const icon=name=>`<svg aria-hidden="true" viewBox="0 0 24 24"><path d="${paths[name]||paths.dumbbell}"/></svg>`;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let storage,storageWarning='',state=initialState();
@@ -11,6 +12,7 @@ try{
 }catch{storageWarning='Браузер запретил сохранение. Изменения будут доступны только до закрытия страницы.';}
 const app=document.querySelector('#app');
 let search='',toastTimer,formState=null,origin='training',date=localDate();
+let calendarMonth=new Date(),calendarSelected=date;
 function persistState(){
   const ok=storage&&persist(storage,state);
   if(!ok){storageWarning='Не удалось сохранить: хранилище недоступно или заполнено. Скачайте резервную копию во вкладке «Упражнения».';toast('Изменения пока только в памяти. Скачайте копию.');}
@@ -27,15 +29,16 @@ function cover(exercise,size='thumb'){
 const statusNames={pending:'Не отмечено',done:'Выполнено',skipped:'Пропущено'};
 function statusLine(value){return `<span class="status-line ${value}"><span class="status-dot">${value==='pending'?'':icon(value==='done'?'check':'x')}</span>${statusNames[value]||statusNames.pending}</span>`;}
 function statusButtons(id,plan){const status=getStatus(state,date,plan,id);return `<div class="status-actions" role="group" aria-label="Статус: ${esc(state.exercises[id].name)}"><button class="status-button skipped" data-action="status" data-id="${esc(id)}" data-plan="${plan}" data-value="skipped" aria-label="Пропустить: ${esc(state.exercises[id].name)}" aria-pressed="${status==='skipped'}">${icon('x')}</button><button class="status-button done" data-action="status" data-id="${esc(id)}" data-plan="${plan}" data-value="done" aria-label="Выполнено: ${esc(state.exercises[id].name)}" aria-pressed="${status==='done'}">${icon('check')}</button></div>`;}
-function nav(active){return `<nav class="bottom-nav" aria-label="Основная навигация"><a href="#/training" ${active==='training'?'aria-current="page"':''}>${icon('dumbbell')}<span>Тренировка</span></a><a href="#/library" ${active==='library'?'aria-current="page"':''}>${icon('library')}<span>Упражнения</span></a></nav>`;}
+function nav(active){return `<nav class="bottom-nav" aria-label="Основная навигация"><a href="#/training" ${active==='training'?'aria-current="page"':''}>${icon('dumbbell')}<span>Тренировка</span></a><a href="#/library" ${active==='library'?'aria-current="page"':''}>${icon('library')}<span>Упражнения</span></a><a href="#/calendar" ${active==='calendar'?'aria-current="page"':''}>${icon('calendar')}<span>Календарь</span></a></nav>`;}
 function alertHTML(){return storageWarning?`<div class="storage-alert" role="alert">${esc(storageWarning)}</div>`:'';}
 function sessionNote(label,text){return `<div class="session-note">${icon('clock')}<div><strong>${label}</strong><br>${text}</div></div>`;}
 function renderTraining(){
   const p=state.selectedPlan,plan=state.plans[p],items=plan.items;
   const done=items.filter(i=>getStatus(state,date,p,i.exerciseId)==='done').length;
+  const completed=Boolean(state.history?.[`${date}:${p}`]);
   const skipped=items.filter(i=>getStatus(state,date,p,i.exerciseId)==='skipped').length;
   const dateLabel=new Intl.DateTimeFormat('ru-RU',{weekday:'long',day:'numeric',month:'long'}).format(new Date(`${date}T12:00:00`));
-  app.innerHTML=`<main class="screen" id="main">${alertHTML()}<header><div class="title-row"><div><p class="eyebrow">${esc(dateLabel)}</p><h1 tabindex="-1">Тренировка</h1></div><a class="icon-button primary" href="#/new" aria-label="Добавить упражнение">${icon('plus')}</a></div><div class="plan-switch" aria-label="Выбор тренировки"><button data-action="plan" data-plan="A" aria-pressed="${p==='A'}">Тренировка А</button><button data-action="plan" data-plan="B" aria-pressed="${p==='B'}">Тренировка Б</button></div><p class="plan-meta"><span>${esc(plan.focus)}</span><span>45–60 мин</span></p><div class="progress-label"><strong>${done} из ${items.length} выполнено</strong><span>${skipped?`${skipped} пропущено`:''}</span></div><div class="progress" role="progressbar" aria-label="Выполнено упражнений" aria-valuemin="0" aria-valuemax="${items.length||1}" aria-valuenow="${done}"><span style="width:${items.length?done/items.length*100:0}%"></span></div></header>${sessionNote('Разминка','5–7 минут на дорожке')}<div class="exercise-list">${items.map((item,n)=>{const e=state.exercises[item.exerciseId],s=getStatus(state,date,p,e.id);return `<article class="exercise-row"><span class="number">${String(n+1).padStart(2,'0')}</span><a class="exercise-link" href="#/exercise/${encodeURIComponent(e.id)}">${cover(e)}<div class="row-content"><h2 class="exercise-name">${esc(e.name)}</h2><p class="body-line">${esc(e.body.join(' · '))}</p><p class="prescription">${dose(item)}</p>${item.optional?'<span class="optional-label">По самочувствию</span>':''}${statusLine(s)}</div></a>${statusButtons(e.id,p)}</article>`;}).join('')}</div><div class="after-list">${sessionNote('После тренировки · по желанию','5–10 минут ходьбы')}<p class="hint">Отдых: 90–120 сек после сложных упражнений, 60–90 сек после остальных. Если не укладываетесь в час, уберите один дополнительный подход.</p><button class="quiet" data-action="reset">${icon('reset')} Снять отметки этой тренировки</button></div></main>${nav('training')}`;
+  app.innerHTML=`<main class="screen" id="main">${alertHTML()}<header><div class="title-row"><div><p class="eyebrow">${esc(dateLabel)}</p><h1 tabindex="-1">Тренировка</h1></div><a class="icon-button primary" href="#/new" aria-label="Добавить упражнение">${icon('plus')}</a></div><div class="plan-switch" aria-label="Выбор тренировки"><button data-action="plan" data-plan="A" aria-pressed="${p==='A'}">Тренировка А</button><button data-action="plan" data-plan="B" aria-pressed="${p==='B'}">Тренировка Б</button></div><p class="plan-meta"><span>${esc(plan.focus)}</span><span>45–60 мин</span></p><div class="progress-label"><strong>${done} из ${items.length} выполнено</strong><span>${skipped?`${skipped} пропущено`:''}</span></div><div class="progress" role="progressbar" aria-label="Выполнено упражнений" aria-valuemin="0" aria-valuemax="${items.length||1}" aria-valuenow="${done}"><span style="width:${items.length?done/items.length*100:0}%"></span></div></header>${sessionNote('Разминка','5–7 минут на дорожке')}<div class="exercise-list">${items.map((item,n)=>{const e=state.exercises[item.exerciseId],s=getStatus(state,date,p,e.id);return `<article class="exercise-row"><span class="number">${String(n+1).padStart(2,'0')}</span><a class="exercise-link" href="#/exercise/${encodeURIComponent(e.id)}">${cover(e)}<div class="row-content"><h2 class="exercise-name">${esc(e.name)}</h2><p class="body-line">${esc(e.body.join(' · '))}</p><p class="prescription">${dose(item)}</p>${item.optional?'<span class="optional-label">По самочувствию</span>':''}${statusLine(s)}</div></a>${statusButtons(e.id,p)}<label class="weight-field"><span>Вес, кг</span><input class="weight-input" type="text" inputmode="decimal" maxlength="8" data-weight-id="${esc(e.id)}" data-weight-plan="${p}" value="${esc(String(getWeight(state,date,p,e.id)).replace('.',','))}" placeholder="—" aria-label="Вес в килограммах: ${esc(e.name)}"></label></article>`;}).join('')}</div><div class="completion-block"><button class="complete-workout ${completed?'completed':''}" data-action="complete-workout" role="checkbox" aria-checked="${completed}"><span class="completion-checkbox">${completed?icon('check'):''}</span><span><strong>Тренировка выполнена</strong><small>${completed?'Результаты сохранены в календаре':'Завершить и сохранить результаты'}</small></span></button>${completed?`<a class="completion-history-link" href="#/history/${encodeURIComponent(`${date}:${p}`)}">Посмотреть в календаре ${icon('chevron')}</a>`:''}</div><div class="after-list">${sessionNote('После тренировки · по желанию','5–10 минут ходьбы')}<p class="hint">Отдых: 90–120 сек после сложных упражнений, 60–90 сек после остальных. Если не укладываетесь в час, уберите один дополнительный подход.</p><button class="quiet" data-action="reset">${icon('reset')} Снять отметки этой тренировки</button></div></main>${nav('training')}`;
 }
 function dose(item){if(!item?.sets&&!item?.reps)return '';return `${esc(item.sets||'—')} × ${esc(item.reps||'—')}`;}
 function renderLibrary(){
@@ -64,8 +67,8 @@ function notFound(){app.innerHTML=`<main class="screen empty"><h1>Не найд�
 function render({keepFocus=false}={}){
   const active=keepFocus?document.activeElement:null,key=active?.dataset?.action,id=active?.dataset?.id,value=active?.dataset?.value,plan=active?.dataset?.plan;
   const parts=location.hash.slice(2).split('/'),view=parts[0]||'training';
-  if(view==='training'){origin='training';renderTraining();}else if(view==='library'){origin='library';renderLibrary();}else if(view==='exercise'){renderDetail(decodeURIComponent(parts[1]||''));}else if(view==='new'||view==='edit'){renderForm(view==='edit'?decodeURIComponent(parts[1]||''):null);}else notFound();
-  document.title=`Fitness · ${view==='library'?'Упражнения':view==='new'?'Новое упражнение':'Тренировка'}`;
+  if(view==='training'){origin='training';renderTraining();}else if(view==='library'){origin='library';renderLibrary();}else if(view==='calendar'){app.innerHTML=calendarView(state,calendarMonth,calendarSelected,{esc,icon,nav});}else if(view==='history'){const key=decodeURIComponent(parts[1]||'');const record=state.history?.[key];if(record){calendarSelected=record.date;calendarMonth=new Date(`${record.date.slice(0,7)}-01T12:00:00`);app.innerHTML=historyView(record,{esc,icon,nav,cover,statusLine,dose});}else notFound();}else if(view==='exercise'){renderDetail(decodeURIComponent(parts[1]||''));}else if(view==='new'||view==='edit'){renderForm(view==='edit'?decodeURIComponent(parts[1]||''):null);}else notFound();
+  document.title=`Fitness · ${view==='calendar'?'Календарь':view==='history'?'История тренировки':view==='library'?'Упражнения':view==='new'?'Новое упражнение':'Тренировка'}`;
   if(key){[...app.querySelectorAll('[data-action]')].find(x=>x.dataset.action===key&&x.dataset.id===id&&x.dataset.value===value&&x.dataset.plan===plan)?.focus({preventScroll:true});}
 }
 function addTag(){readFields();const el=document.querySelector('#new-tag'),value=el.value.trim();if(!value)return;if(formState.body.length>=8){toast('Можно добавить до 8 областей тела');return;}if(!formState.body.includes(value))formState.body.push(value);writeDraft();renderForm(formState.id||null);document.querySelector('#new-tag')?.focus();}
@@ -80,15 +83,35 @@ app.addEventListener('click',event=>{
   const button=event.target.closest('[data-action]');if(!button)return;const a=button.dataset.action;
   if(a==='plan'){state.selectedPlan=button.dataset.plan;persistState();render({keepFocus:true});}
   if(a==='status'){setStatus(state,date,button.dataset.plan,button.dataset.id,button.dataset.value);persistState();render({keepFocus:true});}
+  if(a==='calendar-month'){calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+Number(button.dataset.step),1,12);render();}
+  if(a==='calendar-day'){calendarSelected=button.dataset.date;calendarMonth=new Date(`${calendarSelected.slice(0,7)}-01T12:00:00`);render();}
+  if(a==='calendar-today'){calendarSelected=date;calendarMonth=new Date(`${date.slice(0,7)}-01T12:00:00`);render();}
+  if(a==='complete-workout'){
+    const invalid=[...app.querySelectorAll('.weight-input')].find(input=>!input.checkValidity());
+    if(invalid){invalid.reportValidity();return;}
+    const p=state.selectedPlan,key=`${date}:${p}`;
+    if(state.history?.[key])confirmDialog('Снять отметку завершения?','Запись этой тренировки будет удалена из календаря. Введённые веса и отметки упражнений останутся.',()=>{removeCompletion(state,date,p);persistState();render();});
+    else{
+      const finish=()=>{completeWorkout(state,date,p);const saved=persistState();calendarSelected=date;calendarMonth=new Date(`${date.slice(0,7)}-01T12:00:00`);render();if(saved)toast('Тренировка сохранена в календаре');};
+      const pending=state.plans[p].items.filter(i=>getStatus(state,date,p,i.exerciseId)==='pending').length;
+      if(pending)confirmDialog('Завершить тренировку?',`Не отмечено упражнений: ${pending}. Они останутся неотмеченными в истории. Введённые веса сохранятся.`,finish);else finish();
+    }
+  }
   if(a==='add-tag')addTag();
   if(a==='remove-tag'){readFields();formState.body.splice(Number(button.dataset.index),1);writeDraft();renderForm(formState.id||null);}
   if(a==='photo')document.querySelector('#photo-file').click();
   if(a==='cover-url')openCoverDialog();
   if(a==='export')download();
   if(a==='import')document.querySelector('#import-file').click();
-  if(a==='reset')confirmDialog('Снять отметки?','Все отметки выбранной тренировки за сегодня будут сброшены. Остальные тренировки сохранятся.',()=>{delete state.sessions[`${date}:${state.selectedPlan}`];persistState();render();toast('Отметки сняты');});
+  if(a==='reset')confirmDialog('Снять отметки?','Отметки упражнений и завершение этой тренировки за сегодня будут сброшены, запись удалится из календаря. Введённые веса останутся.',()=>{delete state.sessions[`${date}:${state.selectedPlan}`];removeCompletion(state,date,state.selectedPlan);persistState();render();toast('Отметки сняты');});
 });
 app.addEventListener('input',event=>{
+  if(event.target.matches('.weight-input')){
+    const input=event.target;
+    try{setWeight(state,date,input.dataset.weightPlan,input.dataset.weightId,input.value);input.setCustomValidity('');persistState();}
+    catch(error){input.setCustomValidity(error.message);}
+    return;
+  }
   if(event.target.id==='search'){const pos=event.target.selectionStart;search=event.target.value;renderLibrary();const f=document.querySelector('#search');f.focus();f.setSelectionRange(pos,pos);return;}
   if(event.target.closest('#exercise-form'))readFields();
 });
@@ -100,6 +123,11 @@ app.addEventListener('submit',event=>{
   catch(error){document.querySelector('#form-error').textContent=error.message;document.querySelector('#form-error').scrollIntoView({block:'center'});}
 });
 app.addEventListener('change',async event=>{
+  if(event.target.matches('.weight-input')){
+    const input=event.target;
+    if(!input.checkValidity()){input.reportValidity();return;}
+    input.value=String(getWeight(state,date,input.dataset.weightPlan,input.dataset.weightId)).replace('.',',');
+  }
   if(event.target.id==='photo-file'){
     const file=event.target.files?.[0];if(!file)return;
     if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){toast('Выберите JPG, PNG или WebP до 12 МБ');return;}
