@@ -1,7 +1,7 @@
 import {initialState,STORAGE_KEY,restoreState,persist,localDate,getStatus,setStatus,getWeight,setWeight,completeWorkout,removeCompletion,saveExercise,validCover} from './model.js';
 import {calendarView,historyView} from './calendar.js';
 
-const paths={calendar:'M3 5h18v16H3zM7 3v4M17 3v4M3 10h18M7 14h2M15 14h2M7 18h2',plus:'M12 5v14M5 12h14',check:'m5 12 4 4L19 6',x:'m6 6 12 12M18 6 6 18',back:'m15 18-6-6 6-6',chevron:'m9 6 6 6-6 6',edit:'m16 3 5 5M4 20l4-1L21 6l-4-4L4 15v5Z',image:'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01',link:'m10 13 4-4M8 15l-2 2a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m4 0 2-2a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0',dumbbell:'M7 12h10M5 7v10M19 7v10M2 9v6M22 9v6',library:'M4 5h7l2 3h7v13H4zM4 5V2h5',clock:'M12 8v4l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',download:'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',reset:'M3 10a9 9 0 1 1 1 8M3 4v6h6'};
+const paths={cloud:'M6 18h12a4 4 0 0 0 0-8 6 6 0 0 0-11-2 5 5 0 0 0-1 10',calendar:'M3 5h18v16H3zM7 3v4M17 3v4M3 10h18M7 14h2M15 14h2M7 18h2',plus:'M12 5v14M5 12h14',check:'m5 12 4 4L19 6',x:'m6 6 12 12M18 6 6 18',back:'m15 18-6-6 6-6',chevron:'m9 6 6 6-6 6',edit:'m16 3 5 5M4 20l4-1L21 6l-4-4L4 15v5Z',image:'M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M8 7h.01',link:'m10 13 4-4M8 15l-2 2a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m4 0 2-2a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0',dumbbell:'M7 12h10M5 7v10M19 7v10M2 9v6M22 9v6',library:'M4 5h7l2 3h7v13H4zM4 5V2h5',clock:'M12 8v4l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',download:'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',reset:'M3 10a9 9 0 1 1 1 8M3 4v6h6'};
 const icon=name=>`<svg aria-hidden="true" viewBox="0 0 24 24"><path d="${paths[name]||paths.dumbbell}"/></svg>`;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let storage,storageWarning='',state=initialState();
@@ -11,12 +11,14 @@ try{
   if(raw){const restored=restoreState(raw);if(restored)state=restored;else storageWarning='Сохранённые данные не удалось прочитать. Исходные данные оставлены в хранилище; перед новыми изменениями можно скачать их копию.';}
 }catch{storageWarning='Браузер запретил сохранение. Изменения будут доступны только до закрытия страницы.';}
 const app=document.querySelector('#app');
+let cloud=null;
 let search='',toastTimer,formState=null,origin='training',date=localDate();
 let calendarMonth=new Date(),calendarSelected=date;
 function persistState(){
   const ok=storage&&persist(storage,state);
   if(!ok){storageWarning='Не удалось сохранить: хранилище недоступно или заполнено. Скачайте резервную копию во вкладке «Упражнения».';toast('Изменения пока только в памяти. Скачайте копию.');}
   else storageWarning='';
+  cloud?.engine.markChanged();
   return Boolean(ok);
 }
 function toast(message){const el=document.querySelector('#toast');el.textContent=message;el.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('visible'),3000);}
@@ -43,7 +45,7 @@ function renderTraining(){
 function dose(item){if(!item?.sets&&!item?.reps)return '';return `${esc(item.sets||'—')} × ${esc(item.reps||'—')}`;}
 function renderLibrary(){
   const exercises=Object.values(state.exercises),filtered=exercises.filter(e=>`${e.name} ${e.body.join(' ')}`.toLocaleLowerCase('ru').includes(search.toLocaleLowerCase('ru')));
-  app.innerHTML=`<main class="screen"><header class="title-row"><h1 tabindex="-1">Упражнения</h1><a class="icon-button primary" href="#/new" aria-label="Создать упражнение">${icon('plus')}</a></header>${alertHTML()}<label class="search-wrap" style="display:block">${icon('search')}<input id="search" type="text" placeholder="Название или область тела" aria-label="Поиск упражнений" value="${esc(search)}"></label><p class="library-count">${filtered.length} из ${exercises.length} упражнений</p><div class="exercise-list">${filtered.map((e,i)=>`<article class="exercise-row library-row"><span class="number">${String(i+1).padStart(2,'0')}</span><a class="exercise-link" href="#/exercise/${encodeURIComponent(e.id)}">${cover(e)}<div class="row-content"><h2 class="exercise-name">${esc(e.name)}</h2><p class="body-line">${esc(e.body.join(' · '))}</p><p class="body-line">${['A','B'].filter(p=>state.plans[p].items.some(x=>x.exerciseId===e.id)).map(p=>`Тренировка ${p==='A'?'А':'Б'}`).join(' · ')}</p></div></a><a class="icon-button" href="#/exercise/${encodeURIComponent(e.id)}" aria-label="Открыть: ${esc(e.name)}">${icon('chevron')}</a></article>`).join('')||'<div class="empty"><h2>Ничего не найдено</h2><p>Попробуйте другое название или область тела.</p></div>'}</div><div class="library-bottom"><button class="quiet" data-action="export">${icon('download')} Скачать копию данных</button><button class="quiet" data-action="import">Восстановить копию</button><input class="file-input" id="import-file" type="file" accept=".json,application/json"></div><p class="subtle-note">Данные сохраняются в этом браузере. Обложки иллюстративные; техника и нагрузка определяются вашей программой.</p></main>${nav('library')}`;
+  app.innerHTML=`<main class="screen"><header class="title-row"><h1 tabindex="-1">Упражнения</h1><a class="icon-button primary" href="#/new" aria-label="Создать упражнение">${icon('plus')}</a></header>${alertHTML()}<label class="search-wrap" style="display:block">${icon('search')}<input id="search" type="text" placeholder="Название или область тела" aria-label="Поиск упражнений" value="${esc(search)}"></label><p class="library-count">${filtered.length} из ${exercises.length} упражнений</p><div class="exercise-list">${filtered.map((e,i)=>`<article class="exercise-row library-row"><span class="number">${String(i+1).padStart(2,'0')}</span><a class="exercise-link" href="#/exercise/${encodeURIComponent(e.id)}">${cover(e)}<div class="row-content"><h2 class="exercise-name">${esc(e.name)}</h2><p class="body-line">${esc(e.body.join(' · '))}</p><p class="body-line">${['A','B'].filter(p=>state.plans[p].items.some(x=>x.exerciseId===e.id)).map(p=>`Тренировка ${p==='A'?'А':'Б'}`).join(' · ')}</p></div></a><a class="icon-button" href="#/exercise/${encodeURIComponent(e.id)}" aria-label="Открыть: ${esc(e.name)}">${icon('chevron')}</a></article>`).join('')||'<div class="empty"><h2>Ничего не найдено</h2><p>Попробуйте другое название или область тела.</p></div>'}</div><a class="cloud-entry" href="#/cloud">${icon('cloud')}<span><strong>Облачная синхронизация</strong><small id="sync-badge">${esc(cloud?.status.text||'Войти и подключить')}</small></span>${icon('chevron')}</a><div class="library-bottom"><button class="quiet" data-action="export">${icon('download')} Скачать копию данных</button><button class="quiet" data-action="import">Восстановить копию</button><input class="file-input" id="import-file" type="file" accept=".json,application/json"></div><p class="subtle-note">Без входа данные сохраняются в этом браузере. Обложки иллюстративные; техника и нагрузка определяются вашей программой.</p></main>${nav('library')}`;
 }
 function renderDetail(id){
   const e=state.exercises[id];if(!e)return notFound();
@@ -67,8 +69,8 @@ function notFound(){app.innerHTML=`<main class="screen empty"><h1>Не найд�
 function render({keepFocus=false}={}){
   const active=keepFocus?document.activeElement:null,key=active?.dataset?.action,id=active?.dataset?.id,value=active?.dataset?.value,plan=active?.dataset?.plan;
   const parts=location.hash.slice(2).split('/'),view=parts[0]||'training';
-  if(view==='training'){origin='training';renderTraining();}else if(view==='library'){origin='library';renderLibrary();}else if(view==='calendar'){app.innerHTML=calendarView(state,calendarMonth,calendarSelected,{esc,icon,nav});}else if(view==='history'){const key=decodeURIComponent(parts[1]||'');const record=state.history?.[key];if(record){calendarSelected=record.date;calendarMonth=new Date(`${record.date.slice(0,7)}-01T12:00:00`);app.innerHTML=historyView(record,{esc,icon,nav,cover,statusLine,dose});}else notFound();}else if(view==='exercise'){renderDetail(decodeURIComponent(parts[1]||''));}else if(view==='new'||view==='edit'){renderForm(view==='edit'?decodeURIComponent(parts[1]||''):null);}else notFound();
-  document.title=`Fitness · ${view==='calendar'?'Календарь':view==='history'?'История тренировки':view==='library'?'Упражнения':view==='new'?'Новое упражнение':'Тренировка'}`;
+  if(view==='training'){origin='training';renderTraining();}else if(view==='library'){origin='library';renderLibrary();}else if(view==='cloud'){app.innerHTML=cloud?cloud.view(esc,icon):'<main class="screen"><h1>Облако</h1><p>Загрузка подключения…</p></main>';}else if(view==='calendar'){app.innerHTML=calendarView(state,calendarMonth,calendarSelected,{esc,icon,nav});}else if(view==='history'){const key=decodeURIComponent(parts[1]||'');const record=state.history?.[key];if(record){calendarSelected=record.date;calendarMonth=new Date(`${record.date.slice(0,7)}-01T12:00:00`);app.innerHTML=historyView(record,{esc,icon,nav,cover,statusLine,dose});}else notFound();}else if(view==='exercise'){renderDetail(decodeURIComponent(parts[1]||''));}else if(view==='new'||view==='edit'){renderForm(view==='edit'?decodeURIComponent(parts[1]||''):null);}else notFound();
+  document.title=`Fitness · ${view==='cloud'?'Облачная синхронизация':view==='calendar'?'Календарь':view==='history'?'История тренировки':view==='library'?'Упражнения':view==='new'?'Новое упражнение':'Тренировка'}`;
   if(key){[...app.querySelectorAll('[data-action]')].find(x=>x.dataset.action===key&&x.dataset.id===id&&x.dataset.value===value&&x.dataset.plan===plan)?.focus({preventScroll:true});}
 }
 function addTag(){readFields();const el=document.querySelector('#new-tag'),value=el.value.trim();if(!value)return;if(formState.body.length>=8){toast('Можно добавить до 8 областей тела');return;}if(!formState.body.includes(value))formState.body.push(value);writeDraft();renderForm(formState.id||null);document.querySelector('#new-tag')?.focus();}
@@ -81,6 +83,10 @@ function openCoverDialog(){
 }
 app.addEventListener('click',event=>{
   const button=event.target.closest('[data-action]');if(!button)return;const a=button.dataset.action;
+  if(a==='cloud-sync')cloud?.engine.poll();
+  if(a==='cloud-signout')confirmDialog('Выйти из аккаунта?','Данные на устройстве останутся доступны. Если есть несинхронизированные изменения, перед выходом скачайте копию.',()=>{cloud?.signOut().catch(e=>toast(e.message));});
+  if(a==='cloud-use-remote')confirmDialog('Использовать облачную копию?','Текущая локальная копия будет скачана, затем данные на устройстве заменятся облачными.',()=>{download();cloud?.engine.useCloud().catch(e=>toast(e.message));});
+  if(a==='cloud-use-local')confirmDialog('Загрузить локальную копию?','Текущая копия будет скачана в файл. Данные в облаке заменятся этой копией. Другие устройства получат её после синхронизации.',()=>{download();cloud?.engine.useLocal().catch(e=>toast(e.message));});
   if(a==='plan'){state.selectedPlan=button.dataset.plan;persistState();render({keepFocus:true});}
   if(a==='status'){setStatus(state,date,button.dataset.plan,button.dataset.id,button.dataset.value);persistState();render({keepFocus:true});}
   if(a==='calendar-month'){calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+Number(button.dataset.step),1,12);render();}
@@ -118,6 +124,12 @@ app.addEventListener('input',event=>{
 app.addEventListener('keydown',event=>{if(event.target.id==='new-tag'&&event.key==='Enter'){event.preventDefault();addTag();}});
 app.addEventListener('error',event=>{if(event.target.tagName==='IMG'){event.target.parentElement.classList.add('failed');event.target.remove();}},true);
 app.addEventListener('submit',event=>{
+  if(event.target.id==='cloud-auth'){
+    event.preventDefault();const form=event.target,submit=event.submitter,buttons=[...form.querySelectorAll('button')];
+    buttons.forEach(b=>b.disabled=true);
+    cloud?.authenticate(form.elements.email.value.trim(),form.elements.password.value,submit?.name==='signup').then(message=>{if(message)toast(message);if(location.hash==='#/cloud')render();}).catch(error=>{const m=document.querySelector('#cloud-message');if(m)m.textContent=error.message;buttons.forEach(b=>b.disabled=false);});
+    return;
+  }
   if(event.target.id!=='exercise-form')return;event.preventDefault();readFields();
   try{const oldId=formState.id,id=saveExercise(state,formState,formState.plan);state.selectedPlan=formState.plan;const saved=persistState();if(saved){try{storage.removeItem(`fitness.draft.${oldId||'new'}`);}catch{}}formState=null;location.hash=`#/exercise/${encodeURIComponent(id)}`;if(saved)toast('Упражнение сохранено');}
   catch(error){document.querySelector('#form-error').textContent=error.message;document.querySelector('#form-error').scrollIntoView({block:'center'});}
@@ -145,3 +157,16 @@ app.addEventListener('change',async event=>{
 window.addEventListener('hashchange',()=>{const isForm=/^#\/(new|edit)/.test(location.hash);if(!isForm)formState=null;render();window.scrollTo({top:0,behavior:'instant'});app.querySelector('h1')?.focus({preventScroll:true});});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){const now=localDate();if(now!==date){date=now;if(!document.querySelector('#exercise-form'))render();}}});
 render();
+
+// Load cloud support separately so local training remains usable if the network fails.
+import('./cloud.js').then(({startCloud})=>{
+  cloud=startCloud({storage,getState:()=>state,applyRemote:incoming=>{
+    state=incoming;if(storage)persist(storage,state);
+    const editing=document.activeElement?.matches('input,textarea,select')||document.querySelector('#exercise-form');
+    if(!editing&&location.hash!=='#/cloud')render();
+  },onStatus:status=>{
+    const badge=document.querySelector('#sync-badge');if(badge)badge.textContent=status.text;
+    if(location.hash==='#/cloud'&&(!document.querySelector('#cloud-auth')||cloud?.user))render();
+  }});
+  if(location.hash==='#/cloud')render();
+}).catch(()=>{if(location.hash==='#/cloud')app.innerHTML='<main class="screen"><h1>Нет связи с облаком</h1><p>Перезагрузите страницу. Локальные тренировки доступны.</p><a class="button primary" href="#/training">К тренировке</a></main>';});
