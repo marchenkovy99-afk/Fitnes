@@ -24,6 +24,7 @@ export function setWeight(state,date,plan,id,value){
 }
 export function completeWorkout(state,date,plan){
   if(!state.plans[plan]||!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new Error('Тренировка или дата не найдена.');
+  if(!state.plans[plan].items.length)throw new Error('Сначала добавьте упражнения в тренировку.');
   const key=`${date}:${plan}`;state.history||={};
   if(state.history[key])return state.history[key];
   const p=state.plans[plan];
@@ -38,6 +39,18 @@ export function validCover(value){
   if(!value)return true;
   if(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value))return value.length<1500000;
   try{return ['http:','https:'].includes(new URL(value).protocol);}catch{return false;}
+}
+const validPlanId=id=>typeof id==='string'&&/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(id)&&!['constructor','prototype','__proto__'].includes(id);
+const validItem=(item,exercises)=>item&&Object.hasOwn(exercises,item.exerciseId)&&typeof item.sets==='string'&&(!item.sets||(/^\d{1,2}$/.test(item.sets)&&Number(item.sets)>=1))&&typeof item.reps==='string'&&item.reps.length<=40;
+export function saveWorkout(state,input){
+  const name=String(input.name||'').trim(),focus=String(input.focus||'').trim();
+  if(!name||name.length>80)throw new Error('Введите название тренировки до 80 символов.');
+  if(focus.length>120)throw new Error('Сократите акцент тренировки до 120 символов.');
+  if(!Array.isArray(input.items)||input.items.some(i=>!validItem(i,state.exercises))||new Set(input.items.map(i=>i.exerciseId)).size!==input.items.length)throw new Error('Проверьте упражнения, подходы и повторения.');
+  if(input.id&&(!validPlanId(input.id)||!Object.hasOwn(state.plans,input.id)))throw new Error('Тренировка не найдена.');
+  const id=input.id||`workout-${globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+  state.plans[id]={name,focus,items:input.items.map(i=>({exerciseId:i.exerciseId,sets:i.sets,reps:i.reps,optional:Boolean(i.optional)}))};
+  return id;
 }
 export function saveExercise(state,input,plan){
   const name=String(input.name||'').trim();
@@ -61,12 +74,14 @@ export function saveExercise(state,input,plan){
 export function restoreState(raw){
   try{
     const s=JSON.parse(raw);
-    if(s?.version!==1||!s.exercises||!s.sessions||Array.isArray(s.sessions)||!['A','B'].includes(s.selectedPlan))return null;
-    for(const p of ['A','B']){
+    if(s?.version!==1||!s.exercises||Array.isArray(s.exercises)||!s.sessions||typeof s.sessions!=='object'||Array.isArray(s.sessions)||!s.plans||typeof s.plans!=='object'||Array.isArray(s.plans)||!Object.hasOwn(s.plans,'A')||!Object.hasOwn(s.plans,'B')||!Object.hasOwn(s.plans,s.selectedPlan))return null;
+    for(const p of Object.keys(s.plans)){
+      if(!validPlanId(p))return null;
       if(!Array.isArray(s.plans?.[p]?.items)||typeof s.plans[p].name!=='string'||typeof s.plans[p].focus!=='string')return null;
       for(const item of s.plans[p].items){
-        if(!s.exercises[item.exerciseId]||typeof item.sets!=='string'||typeof item.reps!=='string')return null;
+        if(!validItem(item,s.exercises))return null;
       }
+      if(new Set(s.plans[p].items.map(i=>i.exerciseId)).size!==s.plans[p].items.length)return null;
     }
     for(const [key,e] of Object.entries(s.exercises)){
       if(!e||typeof e.id!=='string'||e.id!==key||typeof e.name!=='string'||typeof e.description!=='string'||!Array.isArray(e.body)||!e.body.every(x=>typeof x==='string')||typeof e.cover!=='string'||!validCover(e.cover))return null;
@@ -78,10 +93,10 @@ export function restoreState(raw){
     if(!s.weights||typeof s.weights!=='object'||Array.isArray(s.weights)||!s.history||typeof s.history!=='object'||Array.isArray(s.history))return null;
     const goodWeight=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=9999.99;
     for(const [key,weights] of Object.entries(s.weights)){
-      if(!/^\d{4}-\d{2}-\d{2}:[AB]$/.test(key)||!weights||typeof weights!=='object'||Array.isArray(weights)||Object.values(weights).some(v=>!goodWeight(v)))return null;
+      if(!/^\d{4}-\d{2}-\d{2}:/.test(key)||!validPlanId(key.slice(11))||!weights||typeof weights!=='object'||Array.isArray(weights)||Object.values(weights).some(v=>!goodWeight(v)))return null;
     }
     for(const [key,record] of Object.entries(s.history)){
-      if(!record||key!==`${record.date}:${record.plan}`||!/^\d{4}-\d{2}-\d{2}:[AB]$/.test(key)||typeof record.name!=='string'||typeof record.focus!=='string'||typeof record.completedAt!=='string'||!Array.isArray(record.items))return null;
+      if(!record||key!==`${record.date}:${record.plan}`||!/^\d{4}-\d{2}-\d{2}:/.test(key)||!validPlanId(record.plan)||typeof record.name!=='string'||typeof record.focus!=='string'||typeof record.completedAt!=='string'||!Array.isArray(record.items))return null;
       for(const item of record.items){
         if(!item||typeof item.exerciseId!=='string'||typeof item.name!=='string'||typeof item.description!=='string'||!Array.isArray(item.body)||!item.body.every(x=>typeof x==='string')||typeof item.sets!=='string'||typeof item.reps!=='string'||typeof item.cover!=='string'||!validCover(item.cover)||!['pending','done','skipped'].includes(item.status)||(item.weight!==null&&!goodWeight(item.weight)))return null;
       }

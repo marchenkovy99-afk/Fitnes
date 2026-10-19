@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check app.js && node --check model.js && node --check data.js && node --check calendar.js && node --check sync.js && node --check cloud.js",
+    "check": "node --check app.js && node --check model.js && node --check data.js && node --check calendar.js && node --check sync.js && node --check cloud.js && node --check workout-editor.js && node --check theme.js",
     "start": "python3 -m http.server 8080",
     "build": "node scripts/build.mjs"
   },

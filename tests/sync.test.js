@@ -34,3 +34,20 @@ test('signing into a different account never automatically uploads the previous 
  const f=setup(initialState(),null,{userId:'old-user',revision:2,dirty:false});
  await f.engine.connect('new-user');assert.equal(f.engine.status.kind,'conflict');assert.equal(f.writes,0);
 });
+
+test('cloud accepts custom workout history and falls back when local selected workout is absent remotely',async()=>{
+ const local=initialState();local.plans.custom={name:'Своя',focus:'Ноги',items:[]};local.selectedPlan='custom';
+ const f=setup(local,{revision:2,payload:initialState()},{userId:'user-a',revision:1,dirty:false});
+ await f.engine.connect('user-a');assert.equal(f.state.selectedPlan,'A');assert.ok(f.state.plans[f.state.selectedPlan]);
+});
+
+test('custom workout, daily weights and completed snapshot reach a new device',async()=>{
+ const {saveWorkout,setWeight,setStatus,completeWorkout}=await import('../model.js');
+ const local=initialState(),id=saveWorkout(local,{name:'Пятница',focus:'Верх',items:[{exerciseId:'row',sets:'4',reps:'8'}]});
+ local.selectedPlan=id;setWeight(local,'2026-10-23',id,'row','25');setStatus(local,'2026-10-23',id,'row','done');completeWorkout(local,'2026-10-23',id);
+ const first=setup(local);await first.engine.connect('user-a');
+ const second=setup(initialState(),first.row);await second.engine.connect('user-a');
+ assert.equal(second.state.plans[id].name,'Пятница');assert.equal(second.state.weights[`2026-10-23:${id}`].row,25);
+ assert.equal(second.state.history[`2026-10-23:${id}`].items[0].status,'done');assert.equal(second.writes,0);
+ first.engine.disconnect();second.engine.disconnect();
+});

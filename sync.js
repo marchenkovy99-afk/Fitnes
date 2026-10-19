@@ -1,4 +1,4 @@
-import {initialState,restoreState} from './model.js';
+import {initialState,restoreState} from './model.js?v=4';
 const META='fitness.sync.meta';
 function stable(value){if(Array.isArray(value))return value.map(stable);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().filter(k=>k!=='selectedPlan').map(k=>[k,stable(value[k])]));return value;}
 export const sameData=(a,b)=>JSON.stringify(stable(a))===JSON.stringify(stable(b));
@@ -9,7 +9,7 @@ export class SyncEngine{
   disconnect(){this.epoch++;this.userId=null;this.busy=false;clearTimeout(this.timer);this.notify('local','На этом устройстве');}
   markChanged(){this.meta.dirty=true;this.remember();if(this.userId&&this.status.kind!=='conflict'){this.notify('pending','Есть несохранённые в облаке изменения');clearTimeout(this.timer);this.timer=setTimeout(()=>this.flush(),900);this.timer.unref?.();}}
   validated(row){if(!row)return null;const payload=restoreState(JSON.stringify(row.payload));if(!payload||!Number.isSafeInteger(Number(row.revision))||Number(row.revision)<1)throw new Error('Облачная копия повреждена. Локальные данные сохранены.');return {...row,payload,revision:Number(row.revision)};}
-  accept(row){const selectedPlan=this.readLocal().selectedPlan;this.applyRemote({...row.payload,selectedPlan});this.meta={userId:this.userId,revision:row.revision,dirty:false};this.remember();this.notify('synced','Синхронизировано');}
+  accept(row){const current=this.readLocal().selectedPlan,selectedPlan=Object.hasOwn(row.payload.plans,current)?current:row.payload.selectedPlan;this.applyRemote({...row.payload,selectedPlan});this.meta={userId:this.userId,revision:row.revision,dirty:false};this.remember();this.notify('synced','Синхронизировано');}
   async connect(userId){
     this.userId=userId;const epoch=++this.epoch;this.busy=true;this.notify('loading','Подключение к облаку…');
     try{

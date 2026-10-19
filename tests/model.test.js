@@ -118,3 +118,35 @@ test('previous version data migrates without losing marks and rejects malformed 
   s.weights={};s.history={'2026-10-19:A':{items:'bad'}};
   assert.equal(model.restoreState(JSON.stringify(s)),null);
 });
+
+test('custom workouts keep independent prescriptions, weights and history across restore',()=>{
+ const s=model.initialState();
+ const id=model.saveWorkout(s,{name:'Своя тренировка',focus:'Спина',items:[{exerciseId:'chest',sets:'4',reps:'8',optional:false}]});
+ assert.notEqual(id,'A');assert.notEqual(id,'B');
+ s.selectedPlan=id;model.setWeight(s,'2026-10-20',id,'chest','22,5');model.setStatus(s,'2026-10-20',id,'chest','done');
+ model.completeWorkout(s,'2026-10-20',id);
+ const r=model.restoreState(JSON.stringify(s));
+ assert.equal(r.selectedPlan,id);assert.equal(r.history[`2026-10-20:${id}`].items[0].weight,22.5);
+ assert.equal(r.plans.A.items[4].sets,'2');
+ model.saveWorkout(s,{id,name:'Новое название',focus:'Верх',items:[{exerciseId:'smith',sets:'2',reps:'12'}]});
+ assert.equal(s.plans[id].name,'Новое название');assert.equal(s.history[`2026-10-20:${id}`].name,'Своя тренировка');
+});
+test('invalid custom workouts never mutate state and empty workouts cannot be completed',()=>{
+ const s=model.initialState(),before=JSON.stringify(s);
+ for(const input of [{name:' '},{name:'Тест',items:[{exerciseId:'missing',sets:'3',reps:'10'}]},{name:'Тест',items:[{exerciseId:'smith',sets:'0',reps:'10'}]},{name:'Тест',items:[{exerciseId:'smith',sets:'3',reps:'10'},{exerciseId:'smith',sets:'3',reps:'10'}]}]) assert.throws(()=>model.saveWorkout(s,input));
+ assert.equal(JSON.stringify(s),before);
+ const id=model.saveWorkout(s,{name:'Пустая',focus:'',items:[]});s.selectedPlan=id;
+ assert.ok(model.restoreState(JSON.stringify(s)));assert.throws(()=>model.completeWorkout(s,'2026-10-20',id));
+});
+test('restore rejects malformed additional workout even when A/B remain valid',()=>{
+ const s=model.initialState();s.plans.extra={name:'Тест',focus:'',items:[{exerciseId:'missing',sets:'3',reps:'10'}]};
+ assert.equal(model.restoreState(JSON.stringify(s)),null);
+ s.plans.extra={name:'Тест',focus:'',items:[]};s.selectedPlan='extra';
+ assert.ok(model.restoreState(JSON.stringify(s)));
+ s.plans['bad:key']={name:'Тест',focus:'',items:[]};assert.equal(model.restoreState(JSON.stringify(s)),null);
+});
+
+test('legacy prescriptions with leading zero sets still restore and sync',()=>{
+ const s=model.initialState();model.saveExercise(s,{name:'Ноги',body:[],description:'',cover:'',sets:'03',reps:'12'},'A');
+ const restored=model.restoreState(JSON.stringify(s));assert.ok(restored);assert.equal(restored.plans.A.items.at(-1).sets,'03');
+});
