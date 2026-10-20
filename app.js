@@ -24,6 +24,27 @@ function persistState(){
   return Boolean(ok);
 }
 function toast(message){const el=document.querySelector('#toast');el.textContent=message;el.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('visible'),3000);}
+function animateScreenEntry(){
+  const screen=app.querySelector?.('.screen');
+  if(!screen||typeof screen.animate!=='function'||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)return;
+  screen.animate([
+    {opacity:.55,transform:'translateY(10px)'},
+    {opacity:1,transform:'translateY(0)'}
+  ],{duration:240,easing:'cubic-bezier(.22,.7,.22,1)'});
+}
+function closeDialogWithMotion(dialog){
+  if(!dialog.open)return;
+  const close=()=>{if(dialog.open)dialog.close();};
+  if(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches||typeof dialog.animate!=='function'){close();return;}
+  if(dialog.dataset.motionClosing==='true')return;
+  dialog.dataset.motionClosing='true';
+  dialog.inert=true;
+  dialog.animate([
+    {opacity:1,transform:'translateY(0)'},
+    {opacity:.7,transform:'translateY(24px)'}
+  ],{duration:155,easing:'ease-in',fill:'forwards'}).finished.then(close,close);
+}
+
 function currentPlan(id){return state.plans[state.selectedPlan].items.some(x=>x.exerciseId===id)?state.selectedPlan:Object.keys(state.plans).find(p=>state.plans[p].items.some(x=>x.exerciseId===id))||state.selectedPlan;}
 function cover(exercise,size='thumb'){
   if(exercise.cover&&validCover(exercise.cover))return `<span class="cover ${size}"><img src="${esc(exercise.cover)}" alt="" loading="lazy" referrerpolicy="no-referrer"></span>`;
@@ -92,10 +113,10 @@ function render({keepFocus=false}={}){
 function addTag(){readFields();const el=document.querySelector('#new-tag'),value=el.value.trim();if(!value)return;if(formState.body.length>=8){toast('Можно добавить до 8 областей тела');return;}if(!formState.body.includes(value))formState.body.push(value);writeDraft();renderForm(formState.id||null);document.querySelector('#new-tag')?.focus();}
 function download(){const data=JSON.stringify(state,null,2),blob=new Blob([data],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`fitness-${date}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function confirmDialog(title,text,onConfirm){
-  const d=document.createElement('dialog');d.className='modal';d.innerHTML=`<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="action-pair"><button class="button secondary" data-cancel>Отмена</button><button class="button primary" data-confirm>Подтвердить</button></div>`;document.body.append(d);d.querySelector('[data-cancel]').onclick=()=>d.close();d.querySelector('[data-confirm]').onclick=()=>{onConfirm();d.close();};d.addEventListener('close',()=>d.remove());d.showModal();
+  const d=document.createElement('dialog');d.className='modal';d.innerHTML=`<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="action-pair"><button class="button secondary" data-cancel>Отмена</button><button class="button primary" data-confirm>Подтвердить</button></div>`;document.body.append(d);d.querySelector('[data-cancel]').onclick=()=>closeDialogWithMotion(d);d.querySelector('[data-confirm]').onclick=()=>{onConfirm();closeDialogWithMotion(d);};d.addEventListener('close',()=>d.remove());d.showModal();
 }
 function openCoverDialog(){
-  readFields();const d=document.createElement('dialog');d.className='modal';d.innerHTML=`<form><h2>Обложка по ссылке</h2><p>Вставьте прямую ссылку на изображение.</p><label class="field-label" for="cover-url">Ссылка</label><input id="cover-url" type="url" placeholder="https://…" value="${esc(formState.cover?.startsWith('http')?formState.cover:'')}"><p class="error" role="alert"></p><div class="action-pair"><button type="button" class="button secondary" data-cancel>Отмена</button><button type="submit" class="button primary">Применить</button></div></form>`;document.body.append(d);d.querySelector('[data-cancel]').onclick=()=>d.close();d.addEventListener('close',()=>d.remove());d.querySelector('form').onsubmit=e=>{e.preventDefault();const url=d.querySelector('input').value.trim();if(!url||!/^https?:/.test(url)||!validCover(url)){d.querySelector('.error').textContent='Нужна прямая http/https-ссылка на фото.';return;}formState.cover=url;writeDraft();d.close();renderForm(formState.id||null);};d.showModal();
+  readFields();const d=document.createElement('dialog');d.className='modal';d.innerHTML=`<form><h2>Обложка по ссылке</h2><p>Вставьте прямую ссылку на изображение.</p><label class="field-label" for="cover-url">Ссылка</label><input id="cover-url" type="url" placeholder="https://…" value="${esc(formState.cover?.startsWith('http')?formState.cover:'')}"><p class="error" role="alert"></p><div class="action-pair"><button type="button" class="button secondary" data-cancel>Отмена</button><button type="submit" class="button primary">Применить</button></div></form>`;document.body.append(d);d.querySelector('[data-cancel]').onclick=()=>closeDialogWithMotion(d);d.addEventListener('close',()=>d.remove());d.querySelector('form').onsubmit=e=>{e.preventDefault();const url=d.querySelector('input').value.trim();if(!url||!/^https?:/.test(url)||!validCover(url)){d.querySelector('.error').textContent='Нужна прямая http/https-ссылка на фото.';return;}formState.cover=url;writeDraft();closeDialogWithMotion(d);renderForm(formState.id||null);};d.showModal();
 }
 app.addEventListener('click',event=>{
   const button=event.target.closest('[data-action]');if(!button)return;const a=button.dataset.action;
@@ -193,9 +214,10 @@ app.addEventListener('change',async event=>{
     catch{toast('Не удалось прочитать файл');}
   }
 });
-window.addEventListener('hashchange',()=>{const isForm=/^#\/(new|edit)/.test(location.hash);if(!isForm)formState=null;if(!/^#\/workout\//.test(location.hash))workoutFormState=null;render();window.scrollTo({top:0,behavior:'instant'});app.querySelector('h1')?.focus({preventScroll:true});});
+window.addEventListener('hashchange',()=>{const isForm=/^#\/(new|edit)/.test(location.hash);if(!isForm)formState=null;if(!/^#\/workout\//.test(location.hash))workoutFormState=null;render();window.scrollTo({top:0,behavior:'instant'});animateScreenEntry();app.querySelector('h1')?.focus({preventScroll:true});});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){const now=localDate();if(now!==date){date=now;if(!document.querySelector('#exercise-form,#workout-form'))render();}}});
 render();
+animateScreenEntry();
 
 // Load cloud support separately so local training remains usable if the network fails.
 import('./cloud.js?v=4').then(({startCloud})=>{
