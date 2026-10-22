@@ -1,6 +1,6 @@
 import {createClient} from './vendor/supabase.js';
 import {SUPABASE_URL,SUPABASE_KEY} from './cloud-config.js';
-import {SyncEngine} from './sync.js';
+import {SyncEngine} from './sync.js?v=6';
 
 export function startCloud(options){
   const client=createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{storageKey:'fitness.supabase.auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
