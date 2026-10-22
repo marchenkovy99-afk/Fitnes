@@ -1,6 +1,6 @@
 import {SEED} from './data.js';
 export const STORAGE_KEY='fitness.v1';
-export function initialState(){return {...structuredClone(SEED),weights:{},history:{}};}
+export function initialState(){return {...structuredClone(SEED),weights:{},history:{},notes:{}};}
 export function localDate(date=new Date()){
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
@@ -13,6 +13,26 @@ export function setStatus(state,date,plan,id,value){
   if(recorded)recorded.status=state.sessions[key][id];
 }
 export function getWeight(state,date,plan,id){return state.weights?.[`${date}:${plan}`]?.[id]??'';}
+export const NOTE_LIMIT=4000;
+const validNote=value=>typeof value==='string'&&value.length<=NOTE_LIMIT;
+export function getNote(state,date,plan,id=null){
+  const key=`${date}:${plan}`,record=state.history?.[key];
+  if(record){
+    if(id===null)return record.note||'';
+    const item=record.items.find(i=>i.exerciseId===id);if(item)return item.note||'';
+  }
+  return id===null?(state.notes?.[key]?.workout||''):(state.notes?.[key]?.exercises?.[id]||'');
+}
+export function setNote(state,date,plan,id,value){
+  const key=`${date}:${plan}`,record=state.history?.[key];
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!validPlanId(plan)||(!Object.hasOwn(state.plans,plan)&&!record))throw new Error('Тренировка или дата не найдена.');
+  if(!validNote(value))throw new Error(`Заметка: не более ${NOTE_LIMIT} символов.`);
+  const item=id===null?null:record?.items.find(i=>i.exerciseId===id);
+  if(id!==null&&(!validPlanId(id)||!(item||state.plans[plan]?.items.some(i=>i.exerciseId===id))))throw new Error('Упражнение не найдено в тренировке.');
+  state.notes||={};state.notes[key]||={workout:'',exercises:{}};
+  if(id===null){state.notes[key].workout=value;if(record)record.note=value;}
+  else{if(value)state.notes[key].exercises[id]=value;else delete state.notes[key].exercises[id];if(item)item.note=value;}
+}
 export function setWeight(state,date,plan,id,value){
   if(!state.plans[plan]?.items.some(i=>i.exerciseId===id))throw new Error('Упражнение не найдено в тренировке.');
   const text=String(value).trim().replace(',','.');
@@ -28,9 +48,9 @@ export function completeWorkout(state,date,plan){
   const key=`${date}:${plan}`;state.history||={};
   if(state.history[key])return state.history[key];
   const p=state.plans[plan];
-  state.history[key]={date,plan,name:p.name,focus:p.focus,completedAt:new Date().toISOString(),items:p.items.map(item=>{
+  state.history[key]={date,plan,name:p.name,focus:p.focus,note:getNote(state,date,plan),completedAt:new Date().toISOString(),items:p.items.map(item=>{
     const e=state.exercises[item.exerciseId],weight=getWeight(state,date,plan,e.id);
-    return {...structuredClone(e),...structuredClone(item),status:getStatus(state,date,plan,e.id),weight:weight===''?null:weight};
+    return {...structuredClone(e),...structuredClone(item),status:getStatus(state,date,plan,e.id),weight:weight===''?null:weight,note:getNote(state,date,plan,e.id)};
   })};
   return state.history[key];
 }
@@ -89,7 +109,12 @@ export function restoreState(raw){
     for(const session of Object.values(s.sessions)){
       if(!session||typeof session!=='object'||Array.isArray(session)||Object.values(session).some(value=>!['pending','done','skipped'].includes(value)))return null;
     }
-    s.weights??={};s.history??={};
+    s.weights??={};s.history??={};s.notes??={};
+    if(!s.notes||typeof s.notes!=='object'||Array.isArray(s.notes))return null;
+    for(const [key,notes] of Object.entries(s.notes)){
+      if(!/^\d{4}-\d{2}-\d{2}:/.test(key)||!validPlanId(key.slice(11))||!notes||!validNote(notes.workout)||!notes.exercises||typeof notes.exercises!=='object'||Array.isArray(notes.exercises))return null;
+      if(Object.entries(notes.exercises).some(([id,note])=>!validPlanId(id)||!validNote(note)))return null;
+    }
     if(!s.weights||typeof s.weights!=='object'||Array.isArray(s.weights)||!s.history||typeof s.history!=='object'||Array.isArray(s.history))return null;
     const goodWeight=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=9999.99;
     for(const [key,weights] of Object.entries(s.weights)){
@@ -97,7 +122,9 @@ export function restoreState(raw){
     }
     for(const [key,record] of Object.entries(s.history)){
       if(!record||key!==`${record.date}:${record.plan}`||!/^\d{4}-\d{2}-\d{2}:/.test(key)||!validPlanId(record.plan)||typeof record.name!=='string'||typeof record.focus!=='string'||typeof record.completedAt!=='string'||!Array.isArray(record.items))return null;
+      if(record.note===undefined)record.note='';if(!validNote(record.note))return null;
       for(const item of record.items){
+        if(item?.note===undefined&&item)item.note='';if(!validNote(item?.note))return null;
         if(!item||typeof item.exerciseId!=='string'||typeof item.name!=='string'||typeof item.description!=='string'||!Array.isArray(item.body)||!item.body.every(x=>typeof x==='string')||typeof item.sets!=='string'||typeof item.reps!=='string'||typeof item.cover!=='string'||!validCover(item.cover)||!['pending','done','skipped'].includes(item.status)||(item.weight!==null&&!goodWeight(item.weight)))return null;
       }
     }

@@ -1,4 +1,4 @@
-import {initialState,restoreState} from './model.js?v=4';
+import {initialState,restoreState} from './model.js?v=6';
 const META='fitness.sync.meta';
 function stable(value){if(Array.isArray(value))return value.map(stable);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().filter(k=>k!=='selectedPlan').map(k=>[k,stable(value[k])]));return value;}
 export const sameData=(a,b)=>JSON.stringify(stable(a))===JSON.stringify(stable(b));

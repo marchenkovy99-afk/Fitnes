@@ -51,3 +51,15 @@ test('custom workout, daily weights and completed snapshot reach a new device',a
  assert.equal(second.state.history[`2026-10-23:${id}`].items[0].status,'done');assert.equal(second.writes,0);
  first.engine.disconnect();second.engine.disconnect();
 });
+
+test('exercise and workout notes reach a new device and historical edits sync back',async()=>{
+ const {setNote,getNote,completeWorkout}=await import('../model.js');
+ const local=initialState(),day='2026-10-22';
+ setNote(local,day,'A','smith','Техника: пауза внизу');setNote(local,day,'A',null,'Хорошая тренировка');completeWorkout(local,day,'A');
+ const first=setup(local);await first.engine.connect('user-a');
+ const second=setup(initialState(),first.row);await second.engine.connect('user-a');
+ assert.equal(getNote(second.state,day,'A','smith'),'Техника: пауза внизу');assert.equal(second.state.history[`${day}:A`].note,'Хорошая тренировка');
+ setNote(second.state,day,'A','smith','Исправлено в истории');second.engine.markChanged();await second.engine.flush();
+ first.setRow(second.row);await first.engine.poll();assert.equal(getNote(first.state,day,'A','smith'),'Исправлено в истории');
+ first.engine.disconnect();second.engine.disconnect();
+});

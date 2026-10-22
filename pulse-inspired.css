@@ -157,3 +157,70 @@ textarea{min-height:150px}
   html{scroll-behavior:auto}
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
+
+/* Workout journal: restrained surfaces, daily notes and clear completed states. */
+:root{--muted:#6c6a77;--nav-height:74px;--radius:16px;--motion-ease:cubic-bezier(.22,.7,.22,1)}
+:root[data-theme=dark]{--muted:#b8b5c2}
+.brand img,.new-workout,.exercise-row,.bottom-nav,.complete-workout{box-shadow:none}
+.new-workout{border-radius:12px;background:transparent}
+.plan-switch{border-radius:13px;padding:4px}
+.plan-switch button{border-radius:10px}
+.session-note{background:var(--surface);color:var(--muted);border:0;border-radius:12px;padding:11px 13px}
+.session-note strong{color:var(--text)}
+:root[data-theme=dark] .session-note{background:var(--surface);border:0;color:var(--muted)}
+:root[data-theme=dark] .session-note strong{color:var(--text)}
+.exercise-list{gap:4px}
+.exercise-row{border:0;border-bottom:1px solid var(--line);background:transparent;border-radius:12px;padding:14px 10px;transition:background-color 180ms var(--motion-ease)}
+.exercise-row.is-done{background:var(--surface);border-color:transparent}
+.exercise-row.is-done .cover{filter:grayscale(1);opacity:.76}
+.exercise-row.is-done .status-button{background:var(--muted);color:var(--raised);border-color:var(--muted)}
+.exercise-row.is-done .exercise-name{color:var(--text)}
+.cover.thumb{border-radius:10px}
+.status-button{grid-row:1;align-self:start;margin-top:7px}
+.weight-field{background:var(--raised);border-color:var(--control);margin-top:7px}
+.exercise-note{grid-column:1/-1;grid-row:3;margin:2px 0 0 71px;min-width:0}
+.note-action{display:inline-flex;align-items:center;justify-content:flex-start;gap:6px;border:0;background:transparent;color:var(--muted);font-size:12px;line-height:1.3;padding:7px 0;min-height:44px;max-width:100%;text-align:left}
+.note-action svg{width:16px;height:16px}
+.note-action span{overflow-wrap:anywhere}
+.note-preview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);font-size:12px;line-height:1.55;max-width:100%;margin:0 0 4px}
+.note-text{font-size:14px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}
+.workout-note{margin:18px 0;padding:15px 0;border-block:1px solid var(--line)}
+.workout-note h2{font-size:14px;letter-spacing:-.2px}
+.workout-note .note-preview{-webkit-line-clamp:3;font-size:14px;color:var(--text)}
+.note-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.note-heading h2{min-width:0}
+.note-heading .note-action{flex-shrink:0}
+.training-dock{bottom:calc(var(--nav-height) + env(safe-area-inset-bottom));width:100%;max-width:480px;padding:10px 20px;background:var(--bg);border-top:1px solid var(--line)}
+.complete-workout{background:var(--text);color:var(--bg);border-radius:13px;min-height:50px}
+.complete-workout.completed{color:var(--text);background:var(--surface);border-color:var(--control)}
+.bottom-nav{bottom:0;width:100%;max-width:480px;height:calc(var(--nav-height) + env(safe-area-inset-bottom));padding:6px 12px calc(6px + env(safe-area-inset-bottom));border:0;border-top:1px solid var(--line);border-radius:0;background:var(--bg)}
+.bottom-nav a{height:60px;color:var(--muted);border-radius:10px;font-size:11px;gap:5px}
+.bottom-nav a[aria-current=page]{color:var(--text)}
+.bottom-nav a[aria-current=page]>svg{color:var(--accent)}
+.bottom-nav a[aria-current=page]::after{display:none}
+.bottom-nav a:active{background:var(--surface)}
+:root[data-theme=dark] .bottom-nav{background:var(--bg);border-color:var(--line)}
+.history-summary{color:var(--muted);padding:12px 0;margin-bottom:0}
+.history-exercise{background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:9px 0;margin:0}
+.history-exercise>summary{gap:10px}
+.history-exercise>summary .note-preview{margin-top:6px;-webkit-line-clamp:1}
+.history-exercise[open]>summary .note-preview{display:none}
+.history-weight{font-size:16px;white-space:nowrap}
+.history-weight>svg{width:14px;height:14px;color:var(--muted);transition:transform 180ms var(--motion-ease)}
+.history-exercise[open] .history-weight>svg{transform:rotate(180deg)}
+.historical-description{padding-bottom:14px}
+.historical-description>.note-text{margin-top:10px;padding-left:11px;border-left:2px solid var(--control)}
+.historical-description>.note-action{margin:3px 0 9px}
+.history-note-marker{display:inline-block;color:var(--muted);font-size:11px;margin-left:12px}
+.history-card{border-radius:14px;box-shadow:none}
+.calendar-panel{border-radius:16px}
+.note-context{color:var(--muted);font-size:13px;line-height:1.5;margin:8px 0 16px;overflow-wrap:anywhere}
+.note-modal{overflow:auto;overscroll-behavior:contain;border-radius:20px 20px 0 0;padding-top:16px}
+.note-modal h2{font-size:18px;line-height:1.35}
+.note-modal textarea{width:100%;min-height:150px;max-height:36dvh;resize:vertical;line-height:1.6;border-radius:12px;padding:12px}
+.note-save-row{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:11px;margin:9px 0 18px;font-variant-numeric:tabular-nums}
+.note-save-row>span:last-child{white-space:nowrap}
+.modal::backdrop{backdrop-filter:none;background:#15151d55}
+.modal[open]{animation-duration:220ms}
+@media(max-width:374px){.exercise-note{margin-left:62px}.exercise-row{padding-inline:8px}.training-dock{padding-inline:15px;width:100%}.bottom-nav{width:100%}.history-exercise>summary{gap:8px}.historical-description{padding-left:0}.history-exercise .cover.thumb{width:44px;height:44px}}
+@media(prefers-reduced-motion:reduce){.modal[open]{animation:none}.history-weight>svg,.exercise-row{transition:none}}
